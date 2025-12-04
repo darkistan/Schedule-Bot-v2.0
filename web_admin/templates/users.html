@@ -109,15 +109,22 @@
                             <td>@{{ user.username }}</td>
                             <td>{{ user.approved_at.strftime('%d.%m.%Y %H:%M') if user.approved_at else '-' }}</td>
                             <td>
-                                {% if user.notifications_enabled %}
-                                    <span class="badge bg-success">Увімкнені</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">Вимкнені</span>
-                                {% endif %}
+                                <form method="POST" action="{{url_for('toggle_notifications', user_id=user.user_id)}}" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{csrf_token()}}"/>
+                                    {% if user.notifications_enabled %}
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        <i class="bi bi-bell-fill"></i> Увімкнені
+                                    </button>
+                                    {% else %}
+                                    <button type="submit" class="btn btn-sm btn-secondary">
+                                        <i class="bi bi-bell-slash"></i> Вимкнені
+                                    </button>
+                                    {% endif %}
+                                </form>
                             </td>
                             <td>
                                 <form method="POST" action="{{ url_for('delete_user', user_id=user.user_id) }}" 
-                                      onsubmit="return confirm('Видалити користувача @{{ user.username }}?');">
+                                      onsubmit="return confirm('Видалити користувача @{{ user.username }}?');" style="display:inline;">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <button type="submit" class="btn btn-sm btn-danger">
                                         <i class="bi bi-trash"></i> Видалити

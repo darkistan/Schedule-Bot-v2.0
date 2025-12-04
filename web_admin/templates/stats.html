@@ -1,16 +1,202 @@
 {% extends "base.html" %}
 {% block title %}Статистика - Schedule Bot Admin{% endblock %}
+
 {% block content %}
-<h1><i class="bi bi-bar-chart"></i> Статистика використання</h1>
-<div class="row">
-<div class="col-md-6">
-<h3>Топ команд</h3>
-<table class="table">
-{% for cmd in command_stats %}<tr><td>{{cmd[0]}}</td><td>{{cmd[1]}}</td></tr>{% endfor %}
-</table>
+<h1 class="mb-4"><i class="bi bi-bar-chart"></i> Статистика використання</h1>
+
+<!-- Загальна статистика -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h2 class="text-primary">{{general_stats.total_logs or 0}}</h2>
+                <p class="text-muted mb-0">Всього логів</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h2 class="text-danger">{{general_stats.total_errors or 0}}</h2>
+                <p class="text-muted mb-0">Помилки</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h2 class="text-warning">{{general_stats.total_warnings or 0}}</h2>
+                <p class="text-muted mb-0">Попередження</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h2 class="text-dark">{{general_stats.total_security or 0}}</h2>
+                <p class="text-muted mb-0">Безпека</p>
+            </div>
+        </div>
+    </div>
 </div>
+
+<div class="row">
+    <!-- Топ команд -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-trophy"></i> Топ-10 команд</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Команда</th>
+                                <th>Використань</th>
+                                <th>Графік</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cmd in command_stats %}
+                            <tr>
+                                <td>{{loop.index}}</td>
+                                <td><code>{{cmd[0]}}</code></td>
+                                <td><strong>{{cmd[1]}}</strong></td>
+                                <td>
+                                    <div class="progress" style="height: 20px; min-width: 100px;">
+                                        <div class="progress-bar" style="width: {{(cmd[1] / command_stats[0][1] * 100)}}%">
+                                            {{(cmd[1] / command_stats[0][1] * 100)|round(1)}}%
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center">Даних немає</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Топ активних користувачів -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-people"></i> Топ-10 активних користувачів</h5>
+                <small class="text-muted">За останні 30 днів</small>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>User ID</th>
+                                <th>Username</th>
+                                <th>Активність</th>
+                                <th>Графік</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in user_activity %}
+                            <tr>
+                                <td>{{loop.index}}</td>
+                                <td><span class="badge bg-secondary">{{user.user_id}}</span></td>
+                                <td>@{{user.username}}</td>
+                                <td><strong>{{user.count}}</strong></td>
+                                <td>
+                                    <div class="progress" style="height: 20px; min-width: 80px;">
+                                        {% set max_count = user_activity[0].count if user_activity else 1 %}
+                                        <div class="progress-bar bg-success" style="width: {{(user.count / max_count * 100)}}%">
+                                            {{(user.count / max_count * 100)|round(1)}}%
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-center">Даних немає</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Активність по днях -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-graph-up"></i> Активність по днях (останні 30 днів)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="activityChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
+{% block scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const ctx = document.getElementById('activityChart');
 
+// Підготовка даних
+const activityData = {
+    labels: [
+        {% for activity in daily_activity %}
+        '{{activity[0]}}',
+        {% endfor %}
+    ],
+    datasets: [{
+        label: 'Кількість подій',
+        data: [
+            {% for activity in daily_activity %}
+            {{activity[1]}},
+            {% endfor %}
+        ],
+        borderColor: 'rgb(13, 110, 253)',
+        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+        fill: true,
+        tension: 0.4
+    }]
+};
 
+// Конфігурація
+const config = {
+    type: 'line',
+    data: activityData,
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                display: false
+            },
+            title: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    precision: 0
+                }
+            }
+        }
+    }
+};
+
+// Створення графіка
+new Chart(ctx, config);
+</script>
+{% endblock %}

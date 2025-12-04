@@ -171,6 +171,26 @@ def deny_request(user_id):
     return redirect(url_for('users'))
 
 
+@app.route('/users/toggle-notifications/<int:user_id>', methods=['POST'])
+def toggle_notifications(user_id):
+    """Перемикання оповіщень користувача"""
+    try:
+        with get_session() as session:
+            user = session.query(User).filter(User.user_id == user_id).first()
+            if user:
+                user.notifications_enabled = not user.notifications_enabled
+                session.commit()
+                
+                status = 'увімкнені' if user.notifications_enabled else 'вимкнені'
+                flash(f'Оповіщення для @{user.username} {status}!', 'success')
+            else:
+                flash('Користувача не знайдено!', 'warning')
+    except Exception as e:
+        flash(f'Помилка зміни оповіщень: {e}', 'danger')
+    
+    return redirect(url_for('users'))
+
+
 @app.route('/schedule')
 def schedule():
     """Управління розкладом"""
@@ -288,6 +308,7 @@ def logs():
         # Параметри фільтрації
         level = request.args.get('level', '')
         search = request.args.get('search', '')
+        command = request.args.get('command', '')
         page = int(request.args.get('page', 1))
         per_page = 100
         
@@ -299,6 +320,15 @@ def logs():
                 query = query.filter(Log.level == level)
             if search:
                 query = query.filter(Log.message.contains(search))
+            if command:
+                query = query.filter(Log.command == command)
+            
+            # Отримуємо список доступних команд для фільтра
+            from sqlalchemy import func, distinct
+            available_commands = session.query(distinct(Log.command)).filter(
+                Log.command.isnot(None)
+            ).order_by(Log.command).all()
+            available_commands = [cmd[0] for cmd in available_commands]
             
             # Пагінація
             total = query.count()
@@ -310,11 +340,32 @@ def logs():
                                  logs=logs_list,
                                  page=page,
                                  total_pages=total_pages,
+                                 total=total,
                                  level=level,
-                                 search=search)
+                                 search=search,
+                                 command=command,
+                                 available_commands=available_commands)
     except Exception as e:
         flash(f'Помилка завантаження логів: {e}', 'danger')
-        return render_template('logs.html', logs=[], page=1, total_pages=1)
+        return render_template('logs.html', logs=[], page=1, total_pages=1, total=0, available_commands=[])
+
+
+@app.route('/logs/clear', methods=['POST'])
+def clear_old_logs():
+    """Очищення старих логів"""
+    try:
+        days = int(request.form.get('days', 30))
+        
+        with get_session() as session:
+            cutoff_date = datetime.now() - timedelta(days=days)
+            deleted = session.query(Log).filter(Log.timestamp < cutoff_date).delete()
+            session.commit()
+            
+            flash(f'Видалено {deleted} записів логів старше {days} днів', 'success')
+    except Exception as e:
+        flash(f'Помилка очищення логів: {e}', 'danger')
+    
+    return redirect(url_for('logs'))
 
 
 @app.route('/settings')
@@ -555,8 +606,9 @@ def stats():
     """Статистика використання"""
     try:
         with get_session() as session:
-            # Статистика по командах
             from sqlalchemy import func
+            
+            # Статистика по командах
             command_stats = session.query(
                 Log.command,
                 func.count(Log.id).label('count')
@@ -571,14 +623,49 @@ def stats():
                 func.count(Log.id).label('count')
             ).filter(
                 Log.timestamp >= thirty_days_ago
-            ).group_by(func.date(Log.timestamp)).all()
+            ).group_by(func.date(Log.timestamp)).order_by(func.date(Log.timestamp)).all()
+            
+            # Топ активних користувачів
+            top_users = session.query(
+                Log.user_id,
+                func.count(Log.id).label('activity_count')
+            ).filter(
+                Log.user_id.isnot(None),
+                Log.timestamp >= thirty_days_ago
+            ).group_by(Log.user_id).order_by(func.count(Log.id).desc()).limit(10).all()
+            
+            # Отримуємо дані користувачів
+            user_activity = []
+            for user_id, count in top_users:
+                user = session.query(User).filter(User.user_id == user_id).first()
+                user_activity.append({
+                    'user_id': user_id,
+                    'username': user.username if user else 'невідомий',
+                    'count': count
+                })
+            
+            # Загальна статистика
+            total_logs = session.query(Log).count()
+            total_errors = session.query(Log).filter(Log.level == 'ERROR').count()
+            total_warnings = session.query(Log).filter(Log.level == 'WARNING').count()
+            total_security = session.query(Log).filter(Log.level == 'SECURITY').count()
+            
+            general_stats = {
+                'total_logs': total_logs,
+                'total_errors': total_errors,
+                'total_warnings': total_warnings,
+                'total_security': total_security,
+                'total_info': total_logs - total_errors - total_warnings - total_security
+            }
             
             return render_template('stats.html',
                                  command_stats=command_stats,
-                                 daily_activity=daily_activity)
+                                 daily_activity=daily_activity,
+                                 user_activity=user_activity,
+                                 general_stats=general_stats)
     except Exception as e:
         flash(f'Помилка завантаження статистики: {e}', 'danger')
-        return render_template('stats.html', command_stats=[], daily_activity=[])
+        return render_template('stats.html', command_stats=[], daily_activity=[], user_activity=[], general_stats={})
 
 
 @app.route('/api/alert-status')
