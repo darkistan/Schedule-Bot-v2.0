@@ -150,6 +150,14 @@ class AnnouncementManager:
         created_at = datetime.fromisoformat(current["created_at"]).strftime("%d.%m.%Y %H:%M")
         updated_at = datetime.fromisoformat(current["updated_at"]).strftime("%d.%m.%Y %H:%M")
         author = current["author_username"]
+        priority = current.get("priority", "normal")
+        
+        # Визначаємо emoji та текст пріоритету
+        priority_display = {
+            'urgent': '🔴 **ТЕРМІНОВЕ**',
+            'important': '🟡 **ВАЖЛИВЕ**',
+            'normal': '📋 **Оголошення**'
+        }.get(priority, '📋 **Оголошення**')
         
         escaped_content = self._escape_markdown(content)
         escaped_author = self._escape_markdown(author)
@@ -158,8 +166,14 @@ class AnnouncementManager:
         if created_at != updated_at:
             date_info += f"\n✏️ Оновлено: {updated_at}"
         
-        return "\n".join([
-            "📋 **Дошка оголошень**",
+        # Формуємо повідомлення з пріоритетом
+        message_parts = [priority_display]
+        
+        # Додаємо рамку для термінових оголошень
+        if priority == 'urgent':
+            message_parts.append("⚠️" * 10)
+        
+        message_parts.extend([
             "─" * 25,
             "",
             escaped_content,
@@ -168,6 +182,8 @@ class AnnouncementManager:
             f"👤 Автор: @{escaped_author}",
             date_info
         ])
+        
+        return "\n".join(message_parts)
     
     def _escape_markdown(self, text: str) -> str:
         """Екранування спеціальних символів Markdown"""
