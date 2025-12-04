@@ -1,6 +1,70 @@
 // Main JS for Schedule Bot Admin Panel
 
-// Auto-dismiss alerts after 5 seconds
+// ========== THEME TOGGLE ==========
+document.addEventListener('DOMContentLoaded', function() {
+    // Завантажуємо збережену тему
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    setTheme(savedTheme);
+    
+    // Обробник перемикача
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+        const currentTheme = document.documentElement.getAttribute('data-bs-theme');
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        setTheme(newTheme);
+        localStorage.setItem('theme', newTheme);
+    });
+});
+
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    document.body.setAttribute('data-bs-theme', theme);
+    
+    const icon = document.getElementById('theme-icon');
+    if (theme === 'dark') {
+        icon.className = 'bi bi-sun-fill';
+    } else {
+        icon.className = 'bi bi-moon-stars-fill';
+    }
+}
+
+// ========== AIR ALERT STATUS ==========
+async function updateAlertStatus() {
+    try {
+        const response = await fetch('/api/alert-status');
+        const data = await response.json();
+        
+        const statusElement = document.getElementById('alert-status');
+        if (data.alert) {
+            // Активна тривога
+            statusElement.innerHTML = `
+                <span class="badge bg-danger pulse-animation">
+                    <i class="bi bi-exclamation-triangle-fill"></i> ${data.message}
+                </span>
+            `;
+        } else {
+            // Тихо
+            statusElement.innerHTML = `
+                <span class="badge bg-success">
+                    <i class="bi bi-shield-check"></i> ${data.message}
+                </span>
+            `;
+        }
+    } catch (error) {
+        document.getElementById('alert-status').innerHTML = `
+            <span class="badge bg-secondary">
+                <i class="bi bi-question-circle"></i> Статус недоступний
+            </span>
+        `;
+    }
+}
+
+// Оновлюємо статус при завантаженні та кожну хвилину
+document.addEventListener('DOMContentLoaded', function() {
+    updateAlertStatus();
+    setInterval(updateAlertStatus, 60000); // Кожну хвилину
+});
+
+// ========== AUTO-DISMISS ALERTS ==========
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         let alerts = document.querySelectorAll('.alert:not(.alert-permanent)');

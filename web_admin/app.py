@@ -17,6 +17,7 @@ from models import (
     AcademicPeriod, Announcement, NotificationHistory,
     NotificationSettings, Log, BotConfig
 )
+from air_alert import get_air_alert_manager
 
 # Ініціалізація Flask
 app = Flask(__name__)
@@ -578,6 +579,50 @@ def stats():
     except Exception as e:
         flash(f'Помилка завантаження статистики: {e}', 'danger')
         return render_template('stats.html', command_stats=[], daily_activity=[])
+
+
+@app.route('/api/alert-status')
+@csrf.exempt
+def api_alert_status():
+    """API для отримання статусу повітряної тривоги"""
+    try:
+        import asyncio
+        air_alert_manager = get_air_alert_manager()
+        
+        # Створюємо новий event loop для async виклику
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        alert_status = loop.run_until_complete(air_alert_manager.get_alert_status())
+        loop.close()
+        
+        if alert_status and air_alert_manager.active_alerts:
+            alert_types = set(alert.get('alert_type', 'unknown') for alert in air_alert_manager.active_alerts)
+            
+            if 'air_raid' in alert_types:
+                message = f"ТРИВОГА в {air_alert_manager.city}!"
+            elif 'artillery_shelling' in alert_types:
+                message = f"ОБСТРІЛ в {air_alert_manager.city}!"
+            else:
+                message = f"ТРИВОГА в {air_alert_manager.city}!"
+            
+            return jsonify({
+                'alert': True,
+                'message': message,
+                'city': air_alert_manager.city,
+                'types': list(alert_types)
+            })
+        else:
+            return jsonify({
+                'alert': False,
+                'message': f"ТИХО в {air_alert_manager.city}",
+                'city': air_alert_manager.city
+            })
+    except Exception as e:
+        return jsonify({
+            'alert': False,
+            'message': 'Статус недоступний',
+            'error': str(e)
+        })
 
 
 # Запуск додатку

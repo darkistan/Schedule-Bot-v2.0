@@ -1,7 +1,84 @@
 /* Custom styles for Schedule Bot Admin */
 body { 
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light theme */
+[data-bs-theme="light"] body {
     background-color: #f8f9fa;
+    color: #212529;
+}
+
+/* Dark theme */
+[data-bs-theme="dark"] body {
+    background-color: #212529;
+    color: #f8f9fa;
+}
+
+[data-bs-theme="dark"] body {
+    background-color: #1a1d20;
+}
+
+[data-bs-theme="dark"] .card {
+    background-color: #2b3035;
+    color: #f8f9fa;
+    border: 1px solid #495057;
+}
+
+[data-bs-theme="dark"] .card-header {
+    background-color: #212529;
+    border-color: #495057;
+    color: #f8f9fa;
+}
+
+[data-bs-theme="dark"] .table {
+    color: #f8f9fa;
+    --bs-table-bg: #2b3035;
+    --bs-table-hover-bg: #343a40;
+}
+
+[data-bs-theme="dark"] .table-light {
+    --bs-table-bg: #343a40;
+    color: #f8f9fa;
+}
+
+[data-bs-theme="dark"] .modal-content {
+    background-color: #2b3035;
+    color: #f8f9fa;
+}
+
+[data-bs-theme="dark"] .modal-header {
+    background-color: #212529;
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select {
+    background-color: #343a40;
+    border-color: #495057;
+    color: #f8f9fa;
+}
+
+[data-bs-theme="dark"] .form-control:focus,
+[data-bs-theme="dark"] .form-select:focus {
+    background-color: #343a40;
+    border-color: #0d6efd;
+    color: #f8f9fa;
+}
+
+[data-bs-theme="dark"] .nav-tabs {
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .nav-tabs .nav-link {
+    color: #adb5bd;
+}
+
+[data-bs-theme="dark"] .nav-tabs .nav-link.active {
+    background-color: #2b3035;
+    border-color: #495057 #495057 #2b3035;
+    color: #f8f9fa;
 }
 
 .navbar { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -71,6 +148,38 @@ body {
 footer {
     margin-top: 3rem;
     border-top: 1px solid #dee2e6;
+}
+
+/* Air Alert Pulse Animation */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
+.pulse-animation {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* Theme toggle button */
+#theme-toggle {
+    border: none;
+    transition: transform 0.3s ease;
+}
+
+#theme-toggle:hover {
+    transform: scale(1.1);
+}
+
+#theme-icon {
+    font-size: 1.2rem;
+}
+
+/* Alert status badge */
+#alert-status .badge {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.8rem;
+    font-weight: 500;
 }
 
 
