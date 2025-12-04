@@ -16,22 +16,36 @@ class ScheduleAnalyzer:
         pass
     
     def _load_data_from_db(self) -> Dict:
-        """Завантаження даних з БД"""
+        """Завантаження даних з БД як словники (не ORM об'єкти)"""
         try:
             with get_session() as session:
-                metadata = session.query(ScheduleMetadata).first()
+                metadata_obj = session.query(ScheduleMetadata).first()
                 periods = session.query(AcademicPeriod).all()
                 
-                return {
-                    'metadata': metadata,
-                    'periods': {p.period_id: {
+                # Конвертуємо ORM об'єкти в словники
+                metadata_dict = None
+                if metadata_obj:
+                    metadata_dict = {
+                        'group_name': metadata_obj.group_name,
+                        'academic_year': metadata_obj.academic_year,
+                        'current_week': metadata_obj.current_week,
+                        'numerator_start_date': metadata_obj.numerator_start_date
+                    }
+                
+                periods_dict = {}
+                for p in periods:
+                    periods_dict[p.period_id] = {
                         'name': p.name,
                         'start': datetime.strptime(p.start_date, "%Y-%m-%d").date(),
                         'end': datetime.strptime(p.end_date, "%Y-%m-%d").date(),
                         'weeks': p.weeks,
                         'color': p.color,
                         'description': p.description
-                    } for p in periods}
+                    }
+                
+                return {
+                    'metadata': metadata_dict,
+                    'periods': periods_dict
                 }
         except Exception as e:
             return {'metadata': None, 'periods': {}}
@@ -100,7 +114,8 @@ class ScheduleAnalyzer:
         data = self._load_data_from_db()
         metadata = data['metadata']
         
-        group_name = metadata.group_name if metadata else "KCM-24-11"
+        # metadata тепер словник, а не ORM об'єкт
+        group_name = metadata['group_name'] if metadata else "KCM-24-11"
         
         report_parts = [
             f"📊 **Прогрес навчання групи {group_name}**",
@@ -136,8 +151,9 @@ class ScheduleAnalyzer:
         metadata = data['metadata']
         periods = data['periods']
         
-        group_name = metadata.group_name if metadata else "KCM-24-11"
-        academic_year = metadata.academic_year if metadata else "2025/2026"
+        # metadata тепер словник
+        group_name = metadata['group_name'] if metadata else "KCM-24-11"
+        academic_year = metadata['academic_year'] if metadata else "2025/2026"
         
         return f"📚 **Повний графік групи {group_name}**\n🎓 Рік: {academic_year}\n\n(Детальний графік тут)"
 
