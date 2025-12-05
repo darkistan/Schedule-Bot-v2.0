@@ -157,6 +157,22 @@ class InputValidator:
             text = text[:self.max_message_length]
         
         return text
+    
+    def validate_role(self, role: str) -> bool:
+        """
+        Валідація ролі користувача
+        
+        Args:
+            role: Роль для перевірки
+            
+        Returns:
+            True якщо роль валідна, False інакше
+        """
+        if not role:
+            return False
+        
+        valid_roles = ['admin', 'user', 'control']
+        return role.lower() in valid_roles
 
 
 # Глобальний екземпляр валідатора

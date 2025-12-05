@@ -75,6 +75,14 @@
                         <label for="username" class="form-label">Username</label>
                         <input type="text" class="form-control" id="username" name="username" placeholder="username">
                     </div>
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Роль</label>
+                        <select class="form-select" id="role" name="role" required>
+                            <option value="user" selected>User (Студент)</option>
+                            <option value="control">Control (Батько)</option>
+                            <option value="admin">Admin (Адміністратор)</option>
+                        </select>
+                    </div>
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-plus"></i> Додати
                     </button>
@@ -97,6 +105,7 @@
                         <tr>
                             <th>User ID</th>
                             <th>Username</th>
+                            <th>Роль</th>
                             <th>Дата схвалення</th>
                             <th>Оповіщення</th>
                             <th>Дії</th>
@@ -107,6 +116,16 @@
                         <tr>
                             <td>{{ user.user_id }}</td>
                             <td>@{{ user.username }}</td>
+                            <td>
+                                {% set user_role = user.role if user.role else 'user' %}
+                                {% if user_role == 'admin' %}
+                                    <span class="badge bg-danger">Admin</span>
+                                {% elif user_role == 'control' %}
+                                    <span class="badge bg-primary">Control</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">User</span>
+                                {% endif %}
+                            </td>
                             <td>{{ user.approved_at.strftime('%d.%m.%Y %H:%M') if user.approved_at else '-' }}</td>
                             <td>
                                 <form method="POST" action="{{url_for('toggle_notifications', user_id=user.user_id)}}" style="display:inline;">
@@ -123,6 +142,9 @@
                                 </form>
                             </td>
                             <td>
+                                <button class="btn btn-sm btn-warning" onclick="showChangeRoleModal({{ user.user_id }}, '{{ user.role if user.role else 'user' }}', '@{{ user.username }}')">
+                                    <i class="bi bi-person-gear"></i> Змінити роль
+                                </button>
                                 <form method="POST" action="{{ url_for('delete_user', user_id=user.user_id) }}" 
                                       onsubmit="return confirm('Видалити користувача @{{ user.username }}?');" style="display:inline;">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -134,7 +156,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="5" class="text-center">Користувачів немає</td>
+                            <td colspan="6" class="text-center">Користувачів немає</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -143,6 +165,45 @@
         </div>
     </div>
 </div>
+
+<!-- Модальне вікно зміни ролі -->
+<div class="modal fade" id="changeRoleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Змінити роль користувача</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="changeRoleForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-body">
+                    <p>Користувач: <strong id="changeRoleUsername"></strong></p>
+                    <div class="mb-3">
+                        <label for="new_role" class="form-label">Нова роль</label>
+                        <select class="form-select" id="new_role" name="role" required>
+                            <option value="user">User (Студент)</option>
+                            <option value="control">Control (Батько)</option>
+                            <option value="admin">Admin (Адміністратор)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
+                    <button type="submit" class="btn btn-primary">Зберегти</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function showChangeRoleModal(userId, currentRole, username) {
+    document.getElementById('changeRoleUsername').textContent = username;
+    document.getElementById('new_role').value = currentRole;
+    document.getElementById('changeRoleForm').action = `/users/change-role/${userId}`;
+    new bootstrap.Modal(document.getElementById('changeRoleModal')).show();
+}
+</script>
 {% endblock %}
 
 

@@ -82,10 +82,50 @@ class DatabaseManager:
         try:
             Base.metadata.create_all(bind=self.engine)
             logger.log_info("Таблиці БД успішно створені")
+            
+            # Виконуємо міграції після створення таблиць
+            self.migrate_add_role_column()
+            
             return True
         except Exception as e:
             logger.log_error(f"Помилка створення таблиць БД: {e}")
             return False
+    
+    def migrate_add_role_column(self):
+        """Автоматична міграція: додавання колонки role в таблицю users"""
+        try:
+            # Перевіряємо чи існує колонка role через прямі SQL запити
+            from sqlalchemy import text
+            with self.engine.begin() as conn:
+                # Перевіряємо чи існує колонка role
+                result = conn.execute(text("""
+                    SELECT COUNT(*) FROM pragma_table_info('users') 
+                    WHERE name='role'
+                """)).scalar()
+                
+                if result == 0:
+                    # Колонка не існує - додаємо її
+                    logger.log_info("Додавання колонки 'role' в таблицю 'users'...")
+                    conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'"))
+                    
+                    # Встановлюємо роль 'admin' для адміністратора
+                    admin_user_id = os.getenv("ADMIN_USER_ID")
+                    if admin_user_id:
+                        try:
+                            admin_id = int(admin_user_id)
+                            conn.execute(
+                                text("UPDATE users SET role = 'admin' WHERE user_id = :user_id"),
+                                {"user_id": admin_id}
+                            )
+                            logger.log_info(f"Встановлено роль 'admin' для користувача {admin_id}")
+                        except (ValueError, TypeError):
+                            logger.log_warning(f"ADMIN_USER_ID не валідний: {admin_user_id}")
+                    
+                    logger.log_info("Міграція колонки 'role' виконана успішно")
+                else:
+                    logger.log_info("Колонка 'role' вже існує, міграція не потрібна")
+        except Exception as e:
+            logger.log_error(f"Помилка міграції колонки 'role': {e}")
     
     def drop_all_tables(self):
         """Видалення всіх таблиць (використовувати обережно!)"""

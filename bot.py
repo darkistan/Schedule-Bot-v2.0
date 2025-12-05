@@ -92,8 +92,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Показуємо меню для авторизованого користувача
         keyboard = create_menu_keyboard(user_id)
         
-        if user_id == ADMIN_USER_ID:
+        user_role = auth_manager.get_user_role(user_id) or 'user'
+        if user_role == 'admin' or user_id == ADMIN_USER_ID:
             message_text = alert_header + "👑 Ви адміністратор розкладу"
+        elif user_role == 'control':
+            message_text = alert_header + "👨‍👩‍👧 Ви батько студента"
         else:
             message_text = alert_header + "✅ Ви маєте доступ до розкладу занять"
         
@@ -203,9 +206,13 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     if auth_manager.is_user_allowed(user_id):
         # Авторизований користувач
-        if user_id == ADMIN_USER_ID:
+        user_role = auth_manager.get_user_role(user_id) or 'user'
+        if user_role == 'admin' or user_id == ADMIN_USER_ID:
             # Адміністратор
             message_text = alert_header + "👑 Ви адміністратор розкладу"
+        elif user_role == 'control':
+            # Батько
+            message_text = alert_header + "👨‍👩‍👧 Ви батько студента"
         else:
             # Звичайний користувач
             message_text = alert_header + "✅ Ви маєте доступ до розкладу занять"
@@ -338,6 +345,59 @@ async def show_current_day_schedule_alternate(update: Update, context: ContextTy
             await update.callback_query.message.reply_text(message_text, parse_mode='HTML', reply_markup=keyboard)
     else:
         await update.message.reply_text(message_text, parse_mode='HTML', reply_markup=keyboard)
+
+
+async def show_current_lesson_for_parent(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
+    """Показ поточного заняття з таймером для батьків"""
+    schedule = get_schedule_handler()
+    
+    # Отримуємо інформацію про поточне заняття
+    current_lesson, next_lesson = schedule.get_current_lesson_info()
+    
+    # Додаємо індикацію повітряної тривоги
+    alert_header = await get_air_alert_header()
+    
+    message_parts = [
+        alert_header,
+        "⏰ **Поточне заняття**",
+        "─" * 30
+    ]
+    
+    # Показуємо поточне заняття
+    if current_lesson:
+        message_parts.append(schedule.format_lesson_for_display(current_lesson, is_current=True))
+        
+        # Додаємо таймер до кінця пари
+        timer_info = schedule.get_lesson_timer_info(current_lesson)
+        if timer_info:
+            message_parts.append("")
+            message_parts.append(timer_info)
+    else:
+        message_parts.append("🟢 **Поточних занять немає**")
+        message_parts.append("")
+        
+        # Якщо немає поточного заняття, показуємо наступне
+        if next_lesson:
+            message_parts.append("")
+            message_parts.append("📅 **Наступне заняття:**")
+            message_parts.append(schedule.format_lesson_for_display(next_lesson, is_current=False))
+    
+    # Створюємо клавіатуру
+    back_keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔙 Назад в меню", callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_menu"))
+    ]])
+    
+    message_text = "\n".join(message_parts)
+    
+    # Перевіряємо чи це callback чи команда
+    if update.callback_query:
+        try:
+            await update.callback_query.edit_message_text(message_text, parse_mode='HTML', reply_markup=back_keyboard)
+        except Exception as e:
+            logger.log_error(f"Помилка редагування повідомлення: {e}")
+            await update.callback_query.message.reply_text(message_text, parse_mode='HTML', reply_markup=back_keyboard)
+    else:
+        await update.message.reply_text(message_text, parse_mode='HTML', reply_markup=back_keyboard)
 
 
 async def show_current_day_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
@@ -504,13 +564,16 @@ def create_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     keyboard = []
     
     if auth_manager.is_user_allowed(user_id):
+        # Отримуємо роль користувача
+        user_role = auth_manager.get_user_role(user_id) or 'user'
+        
         # Отримуємо статус оповіщень користувача
         notification_manager = get_notification_manager()
         notifications_enabled = notification_manager.get_user_notifications_status(user_id)
         notification_button_text = "🔔 Увімкнути оповіщення" if not notifications_enabled else "🔕 Вимкнути оповіщення"
         
         # Авторизований користувач
-        if user_id == ADMIN_USER_ID:
+        if user_role == 'admin' or user_id == ADMIN_USER_ID:
             # Адміністратор - всі команди
             keyboard.extend([
                 [InlineKeyboardButton("📅 Сьогодні", callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_today"))],
@@ -520,6 +583,16 @@ def create_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
                 [InlineKeyboardButton("📋 Дошка оголошень", callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_announcements"))],
                 [InlineKeyboardButton(notification_button_text, callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_toggle_notifications"))],
                 [InlineKeyboardButton("⚙️ Адмін панель", callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_admin"))],
+                [InlineKeyboardButton("ℹ️ Допомога", callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_help"))]
+            ])
+        elif user_role == 'control':
+            # Батько (control) - меню для батьків
+            keyboard.extend([
+                [InlineKeyboardButton("📅 Розклад на сьогодні", callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_today"))],
+                [InlineKeyboardButton("⏰ Поточне заняття", callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_current_lesson"))],
+                [InlineKeyboardButton("📊 Прогрес навчання", callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_progress"))],
+                [InlineKeyboardButton("📋 Оголошення", callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_announcements"))],
+                [InlineKeyboardButton(notification_button_text, callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_toggle_notifications"))],
                 [InlineKeyboardButton("ℹ️ Допомога", callback_data=csrf_manager.add_csrf_to_callback_data(user_id, "cmd_help"))]
             ])
         else:
@@ -785,6 +858,15 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             )
         else:
             await query.edit_message_text("❌ Помилка при зміні налаштувань оповіщень.")
+        
+    elif command == "current_lesson":
+        if not auth_manager.is_user_allowed(user_id):
+            logger.log_unauthorized_access_attempt(user_id, "menu callback current_lesson")
+            await query.edit_message_text("❌ У вас немає доступу до розкладу.")
+            return
+        
+        # Показуємо поточне заняття з таймером
+        await show_current_lesson_for_parent(update, context, user_id)
         
     elif command == "progress":
         if not auth_manager.is_user_allowed(user_id):

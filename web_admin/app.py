@@ -81,6 +81,13 @@ def add_user():
     try:
         user_id = int(request.form.get('user_id'))
         username = request.form.get('username', 'без username')
+        role = request.form.get('role', 'user')
+        
+        # Валідація ролі
+        from input_validator import input_validator
+        if not input_validator.validate_role(role):
+            flash('Невірна роль!', 'danger')
+            return redirect(url_for('users'))
         
         with get_session() as session:
             # Перевіряємо чи вже існує
@@ -93,14 +100,42 @@ def add_user():
                 user_id=user_id,
                 username=username,
                 approved_at=datetime.now(),
-                notifications_enabled=False
+                notifications_enabled=False,
+                role=role
             )
             session.add(user)
             session.commit()
             
-            flash(f'Користувача @{username} додано!', 'success')
+            flash(f'Користувача @{username} додано з роллю {role}!', 'success')
     except Exception as e:
         flash(f'Помилка додавання користувача: {e}', 'danger')
+    
+    return redirect(url_for('users'))
+
+
+@app.route('/users/change-role/<int:user_id>', methods=['POST'])
+def change_user_role(user_id):
+    """Зміна ролі користувача"""
+    try:
+        new_role = request.form.get('role')
+        
+        # Валідація ролі
+        from input_validator import input_validator
+        if not input_validator.validate_role(new_role):
+            flash('Невірна роль!', 'danger')
+            return redirect(url_for('users'))
+        
+        with get_session() as session:
+            user = session.query(User).filter(User.user_id == user_id).first()
+            if user:
+                old_role = getattr(user, 'role', 'user') or 'user'
+                user.role = new_role
+                session.commit()
+                flash(f'Роль користувача @{user.username} змінено з {old_role} на {new_role}', 'success')
+            else:
+                flash('Користувача не знайдено!', 'warning')
+    except Exception as e:
+        flash(f'Помилка зміни ролі: {e}', 'danger')
     
     return redirect(url_for('users'))
 
@@ -134,12 +169,13 @@ def approve_request(user_id):
                 flash('Запит не знайдено!', 'warning')
                 return redirect(url_for('users'))
             
-            # Створюємо користувача
+            # Створюємо користувача з роллю 'user' за замовчуванням
             user = User(
                 user_id=request_obj.user_id,
                 username=request_obj.username,
                 approved_at=datetime.now(),
-                notifications_enabled=False
+                notifications_enabled=False,
+                role='user'
             )
             session.add(user)
             session.delete(request_obj)

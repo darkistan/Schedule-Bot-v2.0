@@ -75,13 +75,14 @@ class AuthManager:
             logger.log_error(f"Помилка додавання запиту для {user_id}: {e}")
             return False
     
-    def approve_user(self, user_id: int, username: str) -> bool:
+    def approve_user(self, user_id: int, username: str, role: str = 'user') -> bool:
         """
         Схвалення користувача
         
         Args:
             user_id: ID користувача
             username: Ім'я користувача
+            role: Роль користувача (за замовчуванням 'user')
             
         Returns:
             True якщо користувач був схвалений
@@ -103,7 +104,8 @@ class AuthManager:
                     user_id=user_id,
                     username=username,
                     approved_at=datetime.now(),
-                    notifications_enabled=False
+                    notifications_enabled=False,
+                    role=role
                 )
                 session.add(user)
                 session.commit()
@@ -200,13 +202,73 @@ class AuthManager:
                         'user_id': user.user_id,
                         'username': user.username,
                         'approved_at': user.approved_at.isoformat() if user.approved_at else None,
-                        'notifications_enabled': user.notifications_enabled
+                        'notifications_enabled': user.notifications_enabled,
+                        'role': getattr(user, 'role', 'user') or 'user'  # Підтримка старих записів без ролі
                     }
                     for user in users
                 ]
         except Exception as e:
             logger.log_error(f"Помилка отримання користувачів: {e}")
             return []
+    
+    def get_user_role(self, user_id: int) -> Optional[str]:
+        """
+        Отримання ролі користувача
+        
+        Args:
+            user_id: ID користувача
+            
+        Returns:
+            Роль користувача або None якщо користувач не знайдений
+        """
+        try:
+            with get_session() as session:
+                user = session.query(User).filter(User.user_id == user_id).first()
+                if user:
+                    return getattr(user, 'role', 'user') or 'user'
+                return None
+        except Exception as e:
+            logger.log_error(f"Помилка отримання ролі користувача {user_id}: {e}")
+            return None
+    
+    def is_admin(self, user_id: int) -> bool:
+        """
+        Перевірка чи користувач є адміністратором
+        
+        Args:
+            user_id: ID користувача
+            
+        Returns:
+            True якщо користувач адміністратор
+        """
+        role = self.get_user_role(user_id)
+        return role == 'admin'
+    
+    def is_control(self, user_id: int) -> bool:
+        """
+        Перевірка чи користувач є батьком (control)
+        
+        Args:
+            user_id: ID користувача
+            
+        Returns:
+            True якщо користувач батько
+        """
+        role = self.get_user_role(user_id)
+        return role == 'control'
+    
+    def is_user(self, user_id: int) -> bool:
+        """
+        Перевірка чи користувач є звичайним користувачем
+        
+        Args:
+            user_id: ID користувача
+            
+        Returns:
+            True якщо користувач звичайний користувач
+        """
+        role = self.get_user_role(user_id)
+        return role == 'user' or role is None
     
     def create_users_management_keyboard(self, users: List[Dict[str, Any]], page: int = 0, 
                                         items_per_page: int = 10, admin_user_id: int = None) -> InlineKeyboardMarkup:

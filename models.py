@@ -19,9 +19,10 @@ class User(Base):
     username = Column(String(100))
     approved_at = Column(DateTime, default=datetime.now)
     notifications_enabled = Column(Boolean, default=False)
+    role = Column(String(20), default='user')  # admin, user, control
     
     def __repr__(self):
-        return f"<User(user_id={self.user_id}, username='{self.username}')>"
+        return f"<User(user_id={self.user_id}, username='{self.username}', role='{self.role}')>"
 
 
 class PendingRequest(Base):
